@@ -2,7 +2,7 @@ import { definePlugin } from "emdash";
 import type { PluginDescriptor, ResolvedPlugin } from "emdash";
 
 export const PLUGIN_ID = "8am";
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const PACKAGE_NAME = "emdash-8am";
 
 export function eightAm(): PluginDescriptor {

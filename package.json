@@ -1,6 +1,6 @@
 {
 	"name": "emdash-8am",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "8AM Creative's toolkit for EmDash sites on Cloudflare: the 8AM admin plugin, an Astro integration, shared components and the live content sync.",
 	"type": "module",
 	"exports": {

@@ -1,0 +1,89 @@
+---
+// Renders an EmDash media image with a real srcset (WebP via Astro getImage).
+// Size names map to width ladders, capped at the source's real width.
+import { getImage } from "astro:assets";
+import { MEDIA_TRANSFORM_ORIGIN } from "../astro/media-origin.js";
+
+interface Props {
+	image: {
+		src?: string;
+		url?: string;
+		alt?: string;
+		width?: number;
+		height?: number;
+		meta?: { storageKey?: string };
+	} | null;
+	size?: "full" | "extra_large" | "2048x2048" | "1536x1536" | "large";
+	class?: string;
+	sizes?: string;
+	loading?: "lazy" | "eager";
+	fetchpriority?: "high" | "low" | "auto";
+	[key: `data-${string}`]: string | number | undefined;
+}
+
+const {
+	image,
+	size = "extra_large",
+	class: cls = "",
+	sizes,
+	loading = "lazy",
+	fetchpriority,
+	...rest
+} = Astro.props;
+
+const LADDERS: Record<string, number[]> = {
+	full: [768, 1280, 1920, 2560, 3840],
+	extra_large: [768, 1280, 1920, 2560, 3840],
+	"2048x2048": [640, 1024, 1536, 2048],
+	"1536x1536": [480, 768, 1152, 1536],
+	large: [512, 768, 1024],
+};
+
+const emdash = Astro.locals.emdash;
+const key = image?.meta?.storageKey;
+const src = key && emdash?.getPublicMediaUrl ? emdash.getPublicMediaUrl(key) : (image?.src ?? image?.url ?? "");
+const alt = (image?.alt ?? "").replace(/<[^>]*>/g, "");
+const naturalWidth = image?.width ?? 0;
+const naturalHeight = image?.height ?? 0;
+
+// Astro only transforms absolute URLs on a host image.remotePatterns authorizes;
+// a root-relative media path is passed through untouched.
+const absSrc = src.startsWith("/") ? new URL(src, MEDIA_TRANSFORM_ORIGIN).href : src;
+
+let imgAttrs: Record<string, unknown> | null = null;
+if (src && naturalWidth && naturalHeight) {
+	const widths = LADDERS[size].filter((w) => w <= naturalWidth);
+	if (!widths.length || widths[widths.length - 1] < naturalWidth) widths.push(naturalWidth);
+	const out = await getImage({
+		src: absSrc,
+		width: naturalWidth,
+		height: naturalHeight,
+		widths,
+		format: "webp",
+	});
+	// an unchanged src means the service passed it through: a srcset would be the same file at every width
+	if (out.src !== absSrc) {
+		imgAttrs = {
+			src: out.src,
+			srcset: out.srcSet.attribute,
+			sizes: sizes ?? `(max-width: ${naturalWidth}px) 100vw, ${naturalWidth}px`,
+			width: naturalWidth,
+			height: naturalHeight,
+		};
+	}
+}
+---
+
+{src && imgAttrs && (
+	<img
+		{...imgAttrs}
+		class={cls || undefined}
+		alt={alt}
+		loading={loading}
+		fetchpriority={fetchpriority}
+		{...rest}
+	/>
+)}
+{src && !imgAttrs && (
+	<img src={src} class={cls || undefined} alt={alt} loading={loading} fetchpriority={fetchpriority} {...rest} />
+)}

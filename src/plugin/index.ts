@@ -1,8 +1,8 @@
-import { definePlugin } from "emdash";
-import type { PluginDescriptor, ResolvedPlugin } from "emdash";
+import { definePlugin, getRequestContext } from "emdash";
+import type { PageFragmentContribution, PluginContext, PluginDescriptor, PublicPageContext, ResolvedPlugin } from "emdash";
 
 export const PLUGIN_ID = "8am";
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 const PACKAGE_NAME = "emdash-8am";
 
 export function eightAm(): PluginDescriptor {
@@ -55,16 +55,39 @@ const DELAY_CAPTCHA = `(function () {
 	document.addEventListener("DOMContentLoaded", function () { if (!held.length) stop(); });
 })();`;
 
+// The edit toolbar only offers Open in admin and Publish when the page carries an
+// entry-level data-emdash-ref. Templates would have to spread {...entry.edit} to
+// get one; this prints it from the page context instead, and like entry.edit only
+// in edit mode, so visitors and cached pages never carry it. Field-level refs are
+// not worth adding: the toolbar can't inline-edit page-builder block fields.
+const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;");
+async function entryRef(page: PublicPageContext, ctx: PluginContext): Promise<string | null> {
+	const content = page.content;
+	if (!content || !ctx.content || !getRequestContext()?.editMode) return null;
+	const entry = await ctx.content.get(content.collection, content.id);
+	if (!entry) return null;
+	const ref: Record<string, unknown> = { collection: content.collection, id: content.id, status: entry.status };
+	if (entry.draftRevisionId && entry.draftRevisionId !== entry.liveRevisionId) ref.hasDraft = true;
+	return `<span hidden data-emdash-ref='${escapeAttr(JSON.stringify(ref))}'></span>`;
+}
+
 export function createPlugin(): ResolvedPlugin {
 	return definePlugin({
 		id: PLUGIN_ID,
 		version: VERSION,
-		capabilities: ["hooks.page-fragments:register"],
+		capabilities: ["hooks.page-fragments:register", "content:read"],
 		hooks: {
-			"page:fragments": async (_event, ctx) =>
-				(await ctx.settings.get<boolean>("delayCaptcha")) === false
-					? null
-					: { kind: "inline-script", placement: "head", code: DELAY_CAPTCHA, key: "8am-delay-captcha" },
+			"page:fragments": async (event, ctx) => {
+				const out: PageFragmentContribution[] = [];
+				if ((await ctx.settings.get<boolean>("delayCaptcha")) !== false) {
+					out.push({ kind: "inline-script", placement: "head", code: DELAY_CAPTCHA, key: "8am-delay-captcha" });
+				}
+				if ((await ctx.settings.get<boolean>("entryToolbar")) !== false) {
+					const html = await entryRef(event.page, ctx);
+					if (html) out.push({ kind: "html", placement: "body:start", html, key: "8am-entry-ref" });
+				}
+				return out.length ? out : null;
+			},
 		},
 		admin: {
 			entry: `${PACKAGE_NAME}/admin`,
@@ -80,6 +103,12 @@ export function createPlugin(): ResolvedPlugin {
 					type: "boolean",
 					label: "Delay Captcha",
 					description: "Holds each form's Turnstile check until user interaction, so it doesn't slow the page load.",
+					default: true,
+				},
+				entryToolbar: {
+					type: "boolean",
+					label: "Entry Toolbar",
+					description: "Gives the site's edit toolbar an Open in admin link and a Publish button for the page being viewed. Page-builder content can't be edited in place either way.",
 					default: true,
 				},
 				refreshCache: {

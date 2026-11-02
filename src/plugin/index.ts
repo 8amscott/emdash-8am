@@ -2,7 +2,7 @@ import { definePlugin, getRequestContext } from "emdash";
 import type { PageFragmentContribution, PluginContext, PluginDescriptor, PublicPageContext, ResolvedPlugin } from "emdash";
 
 export const PLUGIN_ID = "8am";
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 const PACKAGE_NAME = "emdash-8am";
 
 export function eightAm(): PluginDescriptor {
@@ -55,12 +55,35 @@ const DELAY_CAPTCHA = `(function () {
 	document.addEventListener("DOMContentLoaded", function () { if (!held.length) stop(); });
 })();`;
 
-// The edit toolbar only offers Open in admin and Publish when the page carries an
-// entry-level data-emdash-ref. Templates would have to spread {...entry.edit} to
-// get one; this prints it from the page context instead, and like entry.edit only
-// in edit mode, so visitors and cached pages never carry it. Field-level refs are
-// not worth adding: the toolbar can't inline-edit page-builder block fields.
+// EmDash's editor toolbar can't inline-edit page-builder fields, so on these sites its
+// "Edit mode" switch only swaps in the page's draft. Preview Toolbar renames it, hides
+// the toolbar on pages with nothing unpublished, and gives it the entry-level
+// data-emdash-ref its Open in admin link, status badge and Publish button need. The ref
+// prints only in edit mode (like entry.edit), so visitors and cached pages never carry
+// it; the toolbar itself is only added for signed-in editors.
 const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;");
+const PREVIEW_TOOLBAR_STYLE = "<style>#emdash-toolbar:not(.em8-draft){display:none!important}</style>";
+const previewToolbarScript = (page: PublicPageContext) => `(function () {
+	var ref = ${JSON.stringify(page.content ? { collection: page.content.collection, id: page.content.id } : null).replace(/</g, "\\u003c")};
+	function init() {
+		var tb = document.getElementById("emdash-toolbar");
+		if (!tb) return;
+		var label = tb.querySelector(".emdash-tb-toggle-label");
+		if (label) label.textContent = "Preview mode";
+		var toggle = tb.querySelector(".emdash-tb-toggle");
+		if (toggle) toggle.title = "Preview mode";
+		if (!ref) return;
+		fetch("/_emdash/api/content/" + encodeURIComponent(ref.collection) + "/" + encodeURIComponent(ref.id), { credentials: "same-origin" })
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (body) {
+				var item = body && body.data && body.data.item;
+				if (item && item.draftRevisionId && item.draftRevisionId !== item.liveRevisionId) tb.classList.add("em8-draft");
+			})
+			.catch(function () {});
+	}
+	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+	else init();
+})();`;
 async function entryRef(page: PublicPageContext, ctx: PluginContext): Promise<string | null> {
 	const content = page.content;
 	if (!content || !ctx.content || !getRequestContext()?.editMode) return null;
@@ -82,7 +105,9 @@ export function createPlugin(): ResolvedPlugin {
 				if ((await ctx.settings.get<boolean>("delayCaptcha")) !== false) {
 					out.push({ kind: "inline-script", placement: "head", code: DELAY_CAPTCHA, key: "8am-delay-captcha" });
 				}
-				if ((await ctx.settings.get<boolean>("entryToolbar")) !== false) {
+				if ((await ctx.settings.get<boolean>("previewToolbar")) !== false) {
+					out.push({ kind: "html", placement: "head", html: PREVIEW_TOOLBAR_STYLE, key: "8am-preview-toolbar-style" });
+					out.push({ kind: "inline-script", placement: "body:end", code: previewToolbarScript(event.page), key: "8am-preview-toolbar" });
 					const html = await entryRef(event.page, ctx);
 					if (html) out.push({ kind: "html", placement: "body:start", html, key: "8am-entry-ref" });
 				}
@@ -105,10 +130,10 @@ export function createPlugin(): ResolvedPlugin {
 					description: "Holds each form's Turnstile check until user interaction, so it doesn't slow the page load.",
 					default: true,
 				},
-				entryToolbar: {
+				previewToolbar: {
 					type: "boolean",
-					label: "Entry Toolbar",
-					description: "Gives the site's edit toolbar an Open in admin link and a Publish button for the page being viewed. Page-builder content can't be edited in place either way.",
+					label: "Preview Toolbar",
+					description: "Turns the site's editor toolbar into a draft preview: it only appears on pages with unpublished changes, its switch reads Preview mode (shows the draft), and it gets Open in admin and Publish. Off: EmDash's own toolbar, whose Edit mode can't edit page-builder content in place.",
 					default: true,
 				},
 				refreshCache: {

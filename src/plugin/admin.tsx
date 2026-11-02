@@ -35,7 +35,7 @@ const PANELS_BY_SETTING: Record<string, string[]> = {
 const DEFAULTS: Record<string, boolean> = {
 	optionsPage: true,
 	delayCaptcha: true,
-	entryToolbar: true,
+	previewToolbar: true,
 	refreshCache: true,
 	pluginNames: true,
 	hideTaxonomies: true,

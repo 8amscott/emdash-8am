@@ -4,7 +4,7 @@
 
 | Import | What it does |
 |---|---|
-| `emdash-8am` | **The 8AM admin plugin.** Settings under Plugins → 8AM, each with an on/off switch: Options opens as a settings page, Delay Captcha (Turnstile waits for the visitor's first interaction), Entry Toolbar (the edit toolbar gets Open in admin and Publish for the current page), Refresh Cache (form and plugin-settings saves clear cached pages), readable plugin names, and hiding admin items a marketing site doesn't use. |
+| `emdash-8am` | **The 8AM admin plugin.** Settings under Plugins → 8AM, each with an on/off switch: Options opens as a settings page, Delay Captcha (Turnstile waits for the visitor's first interaction), Preview Toolbar (the editor toolbar becomes a draft preview: only on pages with unpublished changes, switch reads Preview mode, with Open in admin and Publish), Refresh Cache (form and plugin-settings saves clear cached pages), readable plugin names, and hiding admin items a marketing site doesn't use. |
 | `emdash-8am/astro` | **Astro integration** `eightAmSite()`: blocks search crawlers on review hosts (`*.workers.dev`, localhost), lets Astro resize EmDash media into WebP srcsets, sets the edge cache rules, and types the theme's `disableremoteplayback` video attribute. |
 | `emdash-8am/ResponsiveImage.astro`, `emdash-8am/chrome`, `emdash-8am/media` | **Shared code for themes:** `<ResponsiveImage>` for EmDash images, `loadChrome()` for the site-wide data each page renders (settings, menus, Options), and `mediaUrl()` / `inlineSvg()`. |
 | `npx emdash-8am pull` / `push` | **Content sync** between local dev and live. Accounts, form submissions and plugin settings stay on each side. |
